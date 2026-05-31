@@ -40,7 +40,7 @@ const getTrainStatusText = (train) => {
     return train.status;
 };
 
-function TrackingLine({ train }) {
+function TrackingLine({ train, isMobile }) {
     const style = getLineStyle(train.line);
     const markerPosition = Math.min(Math.max(Number(train.trainMarkerPosition) || 0, 0), 100);
     const progress = Math.min(Math.max(Number(train.progressPercent) || 0, 0), 100);
@@ -57,6 +57,50 @@ function TrackingLine({ train }) {
     const trackMinWidth = Math.max(stations.length * 92, 380);
     const stationDenominator = Math.max(stations.length - 1, 1);
     const progressStyle = { left: 0, width: `${displayMarkerPosition}%` };
+
+    if (isMobile) {
+        const currentStationIndex = stations.findIndex((station) => station === train.currentStation);
+
+        return (
+            <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-bold text-slate-700">
+                    <span className="min-w-0 truncate">{startStation}</span>
+                    <span className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-600">
+                        {isReturning ? "Returning" : "Going"} {progress}%
+                    </span>
+                    <span className="min-w-0 truncate text-right">{endStation}</span>
+                </div>
+
+                <div className="space-y-2">
+                    {stations.map((station, index) => {
+                        const isCurrentStation = station === train.currentStation;
+                        const statusLabel = isCurrentStation
+                            ? "Current"
+                            : currentStationIndex >= 0 && index < currentStationIndex
+                                ? "Passed"
+                                : "Upcoming";
+
+                        return (
+                            <div
+                                key={`${station}-${index}`}
+                                className={`flex items-center justify-between rounded-xl border px-4 py-3 ${isCurrentStation ? "border-slate-900 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-700"}`}
+                            >
+                                <div>
+                                    <p className="text-sm font-semibold">{station}</p>
+                                    <p className="text-xs text-slate-500">{statusLabel}</p>
+                                </div>
+                                {isCurrentStation && (
+                                    <span className="rounded-full bg-green-600 px-2 py-1 text-[11px] font-bold text-white">
+                                        Current
+                                    </span>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="mt-4">
@@ -131,7 +175,7 @@ function TrackingLine({ train }) {
     );
 }
 
-function TrainCard({ train }) {
+function TrainCard({ train, isMobile }) {
     const style = getLineStyle(train.line);
     const directionLabel = train.directionType === "coming" ? "Returning" : "Going";
     const statusText = getTrainStatusText(train);
@@ -149,7 +193,7 @@ function TrainCard({ train }) {
                 </span>
             </div>
 
-            <TrackingLine train={train} />
+            <TrackingLine train={train} isMobile={isMobile} />
 
             <div className="mt-4 grid grid-cols-1 gap-3 text-sm text-slate-700 sm:grid-cols-2">
                 <div>
@@ -193,7 +237,7 @@ function TrainCard({ train }) {
     );
 }
 
-function DirectionColumn({ title, trains }) {
+function DirectionColumn({ title, trains, isMobile }) {
     return (
         <section>
             <div className="mb-4 flex items-center justify-between">
@@ -210,7 +254,7 @@ function DirectionColumn({ title, trains }) {
             ) : (
                 <div className="grid grid-cols-1 gap-4">
                     {trains.map((train) => (
-                        <TrainCard key={train._id} train={train} />
+                        <TrainCard key={train._id} train={train} isMobile={isMobile} />
                     ))}
                 </div>
             )}
@@ -222,6 +266,7 @@ function TrainTracking() {
     const [trains, setTrains] = useState([]);
     const [lastUpdated, setLastUpdated] = useState("");
     const [selectedLine, setSelectedLine] = useState("All");
+    const [isMobile, setIsMobile] = useState(false);
 
     const fetchTrains = async () => {
         const res = await API.get("/trains");
@@ -241,6 +286,18 @@ function TrainTracking() {
             socket.off("trainUpdated");
             socket.off("train-location-updated");
             clearInterval(refreshTimer);
+        };
+    }, []);
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia("(max-width: 768px)");
+        const handleResize = (event) => setIsMobile(event.matches);
+
+        setIsMobile(mediaQuery.matches);
+        mediaQuery.addEventListener("change", handleResize);
+
+        return () => {
+            mediaQuery.removeEventListener("change", handleResize);
         };
     }, []);
 
@@ -308,8 +365,8 @@ function TrainTracking() {
                 <p className="text-gray-600">No trains available for this line.</p>
             ) : (
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                    <DirectionColumn title="Going Trains" trains={goingTrains} />
-                    <DirectionColumn title="Returning Trains" trains={comingTrains} />
+                    <DirectionColumn title="Going Trains" trains={goingTrains} isMobile={isMobile} />
+                    <DirectionColumn title="Returning Trains" trains={comingTrains} isMobile={isMobile} />
                 </div>
             )}
         </main>
