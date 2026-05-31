@@ -151,16 +151,20 @@ exports.forgotPassengerPassword = async (req, res) => {
     const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
     const resetUrl = `${clientUrl.replace(/\/$/, "")}/reset-password/${resetToken}`;
 
-    await sendEmail({
-      to: user.email,
-      subject: "Smart Metro Password Reset",
-      text: `Reset your Smart Metro passenger password using this link: ${resetUrl}\n\nThis link expires in 15 minutes.`,
-      html: `
-        <p>Reset your Smart Metro passenger password using this link:</p>
-        <p><a href="${resetUrl}">${resetUrl}</a></p>
-        <p>This link expires in 15 minutes.</p>
-      `
-    });
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Smart Metro Password Reset",
+        text: `Reset your Smart Metro passenger password using this link: ${resetUrl}\n\nThis link expires in 15 minutes.`,
+        html: `
+          <p>Reset your Smart Metro passenger password using this link:</p>
+          <p><a href="${resetUrl}">${resetUrl}</a></p>
+          <p>This link expires in 15 minutes.</p>
+        `
+      });
+    } catch (emailError) {
+      console.error("Password reset email failed:", emailError);
+    }
 
     res.json({
       message: "If a passenger account exists, a password reset link has been sent."
