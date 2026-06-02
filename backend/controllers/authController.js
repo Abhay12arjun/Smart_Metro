@@ -149,7 +149,9 @@ exports.forgotPassengerPassword = async (req, res) => {
     await user.save();
 
     const clientUrl =
-      process.env.CLIENT_URL || `${req.protocol}://${req.get("host")}`;
+      process.env.FRONTEND_URL ||
+      process.env.CLIENT_URL ||
+      `${req.protocol}://${req.get("host")}`;
     const resetUrl = `${clientUrl.replace(/\/$/, "")}/#/reset-password/${resetToken}`;
 
     try {

@@ -1,5 +1,7 @@
 const nodemailer = require("nodemailer");
 
+const isProduction = process.env.NODE_ENV === "production";
+
 const hasSmtpConfig = () =>
   process.env.SMTP_HOST &&
   process.env.SMTP_PORT &&
@@ -24,6 +26,12 @@ const sendEmail = async ({ to, subject, text, html }) => {
       }
     });
   } else {
+    if (isProduction) {
+      throw new Error(
+        "SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS in the backend environment."
+      );
+    }
+
     usingTestAccount = true;
     const testAccount = await nodemailer.createTestAccount();
     transporter = nodemailer.createTransport({
