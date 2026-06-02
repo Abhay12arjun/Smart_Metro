@@ -46,6 +46,9 @@ const sendEmail = async (options) => {
     };
   } catch (error) {
     console.error("Email error:", error.message);
+    if (error.code === "EAUTH") {
+      error.message = "SMTP authentication failed. Check SMTP_USER and SMTP_PASS in backend environment variables.";
+    }
     throw error;
   }
 };
