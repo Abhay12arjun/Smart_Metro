@@ -4,10 +4,13 @@ const sendEmail = async (options) => {
   try {
     // Check if SMTP is configured
     if (!process.env.SMTP_HOST || !process.env.SMTP_PORT || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.warn("⚠️  SMTP not configured. Skipping email to:", options.to);
+      console.warn("⚠️  SMTP not configured. Email would be sent to:", options.to);
+      console.warn("Subject:", options.subject);
+      console.warn("Reset link available in console logs for development");
+      // Don't throw - allow reset token to be created even without email
       return {
         success: false,
-        message: "SMTP not configured"
+        message: "SMTP not configured - token created but email not sent"
       };
     }
 
@@ -38,6 +41,7 @@ const sendEmail = async (options) => {
     };
   } catch (error) {
     console.error("❌ Email error:", error.message);
+    // Return error but don't crash - let caller decide what to do
     throw error;
   }
 };

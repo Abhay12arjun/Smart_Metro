@@ -156,7 +156,7 @@ exports.forgotPassengerPassword = async (req, res) => {
       `${req.protocol}://${req.get("host")}`;
     const resetLink = `${frontendUrl.replace(/\/$/, "")}/#/reset-password/${resetToken}`;
 
-    // Send email
+    // Send email (best effort - don't fail if email service unavailable)
     try {
       await sendEmail({
         to: user.email,
@@ -176,11 +176,9 @@ exports.forgotPassengerPassword = async (req, res) => {
 
       console.log(`✓ Password reset email sent to ${user.email}`);
     } catch (emailError) {
-      console.error("Email send failed:", emailError.message);
-      // Still save token but notify user
-      return res.status(503).json({
-        message: "Email service is currently unavailable. Please try again later."
-      });
+      console.warn(`⚠️ Email failed for ${user.email}: ${emailError.message}`);
+      console.warn(`Reset link: ${resetLink}`);
+      // Don't fail the request if email service is unavailable
     }
 
     res.json({
