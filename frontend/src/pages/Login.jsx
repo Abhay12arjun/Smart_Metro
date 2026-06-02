@@ -63,11 +63,11 @@ function Login() {
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
                 />
 
-                <div className="text-right mb-4">
+                {/* <div className="text-right mb-4">
                     <Link to="/forgot-password" className="text-blue-700 font-bold">
                         Forgot password?
                     </Link>
-                </div>
+                </div> */}
 
                 <button className="bg-blue-950 text-white p-3 w-full rounded">
                     Login
