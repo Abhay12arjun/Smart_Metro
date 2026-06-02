@@ -196,6 +196,9 @@ exports.forgotPassengerPassword = async (req, res) => {
       return res.status(500).json({
         message: "Failed to send password reset email. Please check SMTP settings."
       });
+      console.warn(`⚠️ Email failed for ${user.email}: ${emailError.message}`);
+      console.warn(`Reset link: ${resetLink}`);
+      // Don't fail the request if email service is unavailable
     }
 
     res.json({
