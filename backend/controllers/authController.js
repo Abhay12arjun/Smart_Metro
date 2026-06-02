@@ -129,16 +129,18 @@ exports.forgotPassengerPassword = async (req, res) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await User.findOne({ email: normalizedEmail, role: "passenger" });
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      return res.json({
-        message: "If an account exists, a password reset link will be sent to your email."
-      });
+      return res.status(404).json({ message: "Passenger user not found with this email." });
+    }
+
+    if (user.role !== "passenger") {
+      return res.status(403).json({ message: "Password reset is available only for passenger users." });
     }
 
     if (user.authProvider === "google") {
-      return res.json({
+      return res.status(400).json({
         message: "This account uses Google login. Please login with Google."
       });
     }
@@ -156,9 +158,9 @@ exports.forgotPassengerPassword = async (req, res) => {
       `${req.protocol}://${req.get("host")}`;
     const resetLink = `${frontendUrl.replace(/\/$/, "")}/#/reset-password/${resetToken}`;
 
-    // Send email (best effort - don't fail if email service unavailable)
+    // Send email. If delivery fails, clear the token so stale links cannot be used.
     try {
-      await sendEmail({
+      const emailResult = await sendEmail({
         to: user.email,
         subject: "Smart Metro - Password Reset Request",
         html: `
@@ -174,15 +176,30 @@ exports.forgotPassengerPassword = async (req, res) => {
         text: `Password Reset Request\n\nClick the link to reset your password (valid for 15 minutes): ${resetLink}`
       });
 
+      if (!emailResult?.success) {
+        user.resetToken = undefined;
+        user.resetTokenExpires = undefined;
+        await user.save();
+
+        return res.status(500).json({
+          message: "Email service is not configured. Password reset email was not sent."
+        });
+      }
+
       console.log(`✓ Password reset email sent to ${user.email}`);
     } catch (emailError) {
-      console.warn(`⚠️ Email failed for ${user.email}: ${emailError.message}`);
-      console.warn(`Reset link: ${resetLink}`);
-      // Don't fail the request if email service is unavailable
+      user.resetToken = undefined;
+      user.resetTokenExpires = undefined;
+      await user.save();
+
+      console.warn(`Email failed for ${user.email}: ${emailError.message}`);
+      return res.status(500).json({
+        message: "Failed to send password reset email. Please check SMTP settings."
+      });
     }
 
     res.json({
-      message: "If an account exists, a password reset link will be sent to your email."
+      message: "Password reset email sent successfully. Please check your email."
     });
   } catch (error) {
     console.error("Forgot password error:", error);
