@@ -2,6 +2,8 @@ const Ticket = require("../models/Ticket");
 const User = require("../models/User");
 const Station = require("../models/Station");
 
+const WALLET_TICKET_CANCEL_WINDOW_MS = 60 * 1000;
+
 exports.bookTicket = async (req, res) => {
   try {
     const { line, source, destination } = req.body;
@@ -117,6 +119,13 @@ exports.cancelTicket = async (req, res) => {
 
     if (ticket.status !== "Booked") {
       return res.status(400).json({ message: "Only booked tickets can be cancelled" });
+    }
+
+    const bookedAt = ticket.createdAt ? ticket.createdAt.getTime() : 0;
+    const cancelWindowExpired = Date.now() - bookedAt > WALLET_TICKET_CANCEL_WINDOW_MS;
+
+    if (cancelWindowExpired) {
+      return res.status(400).json({ message: "Wallet ticket can only be cancelled within 1 minute of booking" });
     }
 
     // Refund amount to wallet

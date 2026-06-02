@@ -8,10 +8,21 @@ const getLineDisplay = (line) => {
     return `${line.charAt(0).toUpperCase()}${line.slice(1)} Line`;
 };
 
+const TICKET_CANCEL_WINDOW_MS = 60 * 1000;
+
+const canCancelTicket = (ticket, now) => {
+    if (ticket.status !== "Booked" || !ticket.createdAt) {
+        return false;
+    }
+
+    return now - new Date(ticket.createdAt).getTime() <= TICKET_CANCEL_WINDOW_MS;
+};
+
 function PassengerDashboard() {
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [now, setNow] = useState(Date.now());
     const user = JSON.parse(localStorage.getItem("metroUser"));
 
     const fetchTickets = async () => {
@@ -30,6 +41,12 @@ function PassengerDashboard() {
 
     useEffect(() => {
         fetchTickets();
+    }, []);
+
+    useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+
+        return () => clearInterval(timer);
     }, []);
 
     const cancelTicket = async (id) => {
@@ -180,7 +197,7 @@ function PassengerDashboard() {
                                             {new Date(ticket.createdAt).toLocaleDateString()}
                                         </td>
                                         <td className="px-6 py-4">
-                                            {ticket.status === "Booked" && (
+                                            {canCancelTicket(ticket, now) && (
                                                 <button
                                                     onClick={() => cancelTicket(ticket._id)}
                                                     className="bg-red-500 text-white px-4 py-2 rounded font-semibold hover:bg-red-600 transition"
