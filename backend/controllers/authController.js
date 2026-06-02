@@ -167,6 +167,9 @@ exports.forgotPassengerPassword = async (req, res) => {
       });
     } catch (emailError) {
       console.error("Password reset email failed:", emailError);
+      return res.status(500).json({
+        message: "Password reset service is unavailable. Please try again later."
+      });
     }
 
     res.json({
