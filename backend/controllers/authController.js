@@ -165,10 +165,11 @@ exports.forgotPassengerPassword = async (req, res) => {
           <p>This link expires in 15 minutes.</p>
         `
       });
+      console.log(`✓ Reset email sent to ${user.email}`);
     } catch (emailError) {
-      console.error("Password reset email failed:", emailError);
+      console.error("❌ Email send failed:", emailError.message);
       return res.status(500).json({
-        message: "Password reset service is unavailable. Please try again later."
+        message: "Email service unavailable. Please check SMTP configuration on the backend."
       });
     }
 
