@@ -122,97 +122,121 @@ exports.loginAdmin = async (req, res) => {
 
 exports.forgotPassengerPassword = async (req, res) => {
   try {
-    const normalizedEmail = req.body.email?.trim().toLowerCase();
+    const { email } = req.body;
 
-    if (!normalizedEmail) {
+    if (!email) {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    const user = await User.findOne({ email: normalizedEmail });
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail, role: "passenger" });
 
-    if (!user || user.role !== "passenger") {
+    if (!user) {
       return res.json({
-        message: "If a passenger account exists, a password reset link has been sent."
+        message: "If an account exists, a password reset link will be sent to your email."
       });
     }
 
-    if (user.authProvider !== "local") {
-      return res.status(400).json({ message: "This account uses Google login." });
+    if (user.authProvider === "google") {
+      return res.json({
+        message: "This account uses Google login. Please login with Google."
+      });
     }
 
+    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString("hex");
-    user.passwordResetToken = crypto
-      .createHash("sha256")
-      .update(resetToken)
-      .digest("hex");
-    user.passwordResetExpires = Date.now() + 15 * 60 * 1000;
+    user.resetToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+    user.resetTokenExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
     await user.save();
 
-    const clientUrl =
+    // Build reset URL
+    const frontendUrl =
       process.env.FRONTEND_URL ||
       process.env.CLIENT_URL ||
       `${req.protocol}://${req.get("host")}`;
-    const resetUrl = `${clientUrl.replace(/\/$/, "")}/#/reset-password/${resetToken}`;
+    const resetLink = `${frontendUrl.replace(/\/$/, "")}/#/reset-password/${resetToken}`;
 
+    // Send email
     try {
       await sendEmail({
         to: user.email,
-        subject: "Smart Metro Password Reset",
-        text: `Reset your Smart Metro passenger password using this link: ${resetUrl}\n\nThis link expires in 15 minutes.`,
+        subject: "Smart Metro - Password Reset Request",
         html: `
-          <p>Reset your Smart Metro passenger password using this link:</p>
-          <p><a href="${resetUrl}">${resetUrl}</a></p>
-          <p>This link expires in 15 minutes.</p>
-        `
+          <h2>Password Reset Request</h2>
+          <p>Hi ${user.name},</p>
+          <p>You requested a password reset for your Smart Metro account.</p>
+          <p>Click the link below to reset your password (valid for 15 minutes):</p>
+          <p><a href="${resetLink}" style="background-color: #1f2937; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a></p>
+          <p>Or copy this link: ${resetLink}</p>
+          <p>If you didn't request this, please ignore this email.</p>
+          <p>Regards,<br>Smart Metro Team</p>
+        `,
+        text: `Password Reset Request\n\nClick the link to reset your password (valid for 15 minutes): ${resetLink}`
       });
-      console.log(`✓ Reset email sent to ${user.email}`);
+
+      console.log(`✓ Password reset email sent to ${user.email}`);
     } catch (emailError) {
-      console.error("❌ Email send failed:", emailError.message);
-      return res.status(500).json({
-        message: "Email service unavailable. Please check SMTP configuration on the backend."
+      console.error("Email send failed:", emailError.message);
+      // Still save token but notify user
+      return res.status(503).json({
+        message: "Email service is currently unavailable. Please try again later."
       });
     }
 
     res.json({
-      message: "If a passenger account exists, a password reset link has been sent."
+      message: "If an account exists, a password reset link will be sent to your email."
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Forgot password error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
 exports.resetPassengerPassword = async (req, res) => {
   try {
-    const { password } = req.body;
+    const { password, confirmPassword } = req.body;
+    const { token } = req.params;
 
-    if (!password || password.length < 6) {
+    if (!password || !confirmPassword) {
+      return res.status(400).json({ message: "Password and confirmation are required" });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match" });
+    }
+
+    if (password.length < 6) {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
 
-    const hashedToken = crypto
-      .createHash("sha256")
-      .update(req.params.token)
-      .digest("hex");
-
+    // Find user with valid reset token
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
     const user = await User.findOne({
-      passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: Date.now() },
+      resetToken: hashedToken,
+      resetTokenExpires: { $gt: new Date() },
       role: "passenger"
     });
 
     if (!user) {
-      return res.status(400).json({ message: "Password reset link is invalid or expired" });
+      return res.status(400).json({
+        message: "Password reset link is invalid or has expired. Please request a new one."
+      });
     }
 
+    // Update password
     user.password = await bcrypt.hash(password, 10);
-    user.authProvider = "local";
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
+    user.resetToken = undefined;
+    user.resetTokenExpires = undefined;
     await user.save();
 
-    res.json({ message: "Password reset successfully. Please login with your new password." });
+    console.log(`✓ Password reset successfully for ${user.email}`);
+
+    res.json({
+      message: "Password reset successfully. You can now login with your new password."
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Reset password error:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
